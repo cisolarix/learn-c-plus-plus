@@ -58,7 +58,12 @@ class GameEngine {
     Unit obstacles[OBSTACLE_COUNT];
     Unit bullet = {0, 0, false, 0};
     Unit bullets[5];
-    int score = 0;
+    int playerDir = 0;     // 玩家朝向 0=上 1=右 2=下 3=左
+    Unit extractionPoint;  // 撤离点
+    int extractionTimer = 0; // 撤离计时器（需要停留5秒=33帧）
+    bool missionComplete = false; // 任务完成标志
+    int bulletDirX[4] = {0, 1, 0, -1};  // 子弹X方向
+    int bulletDirY[4] = {-1, 0, 1, 0};  // 子弹Y方向
     
     // 技能系统
     int stealthTimer = 0;
@@ -67,6 +72,14 @@ class GameEngine {
     int shieldHp = 0;      // 护盾值（深蓝专属）
     int poisonTimer[E_COUNT]; // 中毒计时器（蛊专属）
     bool canFly = false;   // 飞行状态（蝶专属）
+    
+    // 武器系统
+    int currentWeapon = 0; // 0=主武器 1=副武器 2=刀
+    int primaryAmmo = 30;   // 主武器弹药
+    int secondaryAmmo = 15; // 副武器弹药
+    int reloadTimer = 0;    // 换弹计时器1
+    int skill1Cooldown = 0; // 技能1冷却
+    int skill2Cooldown = 0; // 技能2冷却
     
     // 角色和难度
     int selectedChar = 11;
@@ -89,14 +102,11 @@ public:
         // 初始化
         for(int i=0; i<E_COUNT; i++) poisonTimer[i] = 0;
         for(int i=0; i<5; i++) bullets[i] = {0, 0, false, 0};
-
-        // 加载存档
-        ifstream f("save.txt");
-        int savedHp, savedScore;
-        if (f >> savedHp >> savedScore) {
-            if (savedScore > score) score = savedScore;
-        }
-        f.close();
+        
+        // 设置撤离点在地图右上角
+        extractionPoint = {M_SIZE - 3, 2, true, 0};
+        extractionTimer = 0;
+        missionComplete = false;
 
         // 根据难度生成敌人
         int enemyHp = 30 + difficulty * 20;
@@ -132,7 +142,9 @@ public:
                difficulty==0?"简单":difficulty==1?"普通":"困难");
         printf(" 生命: %-3d", p.hp);
         if(shieldHp > 0) printf("(+%d盾) ", shieldHp);
-        printf("| 分数: %-4d | 能量: %-3d\n", score, energy);
+        printf("| 能量: %-3d", energy);
+        if(extractionTimer > 0) printf(" | 撤离中: %.1f秒", extractionTimer/6.67);
+        printf("\n");
         printf(" 状态: ");
         if(stealthTimer > 0) printf("[%s %d] ", currentChar->skill1Name.c_str(), stealthTimer/5);
         if(berserkTimer > 0) printf("[%s %d] ", currentChar->skill2Name.c_str(), berserkTimer/5);
@@ -188,6 +200,12 @@ public:
                             break;
                         }
                     
+                    // 检查撤离点
+                    if (!hit && extractionPoint.x == x && extractionPoint.y == y) {
+                        printf("◎");
+                        hit = true;
+                    }
+                    
                     // 检查障碍物
                     if (!hit) {
                         for (int i = 0; i < OBSTACLE_COUNT; i++)
@@ -223,9 +241,50 @@ public:
             }
             printf("\n");
         }
-        printf("WASD:移动 | 空格:射击 | Q:%s(%d) | E:%s(%d)\n", 
-               currentChar->skill1Name.c_str(), currentChar->skill1Cost,
-               currentChar->skill2Name.c_str(), currentChar->skill2Cost);
+        
+        // 底部UI：技能和武器栏
+        printf("\n========================================\n");
+        printf(" 技能栏: ");
+        
+        // 技能1状态
+        if(skill1Cooldown > 0) {
+            printf("[Q:%s CD:%.1fs] ", currentChar->skill1Name.c_str(), skill1Cooldown/10.0);
+        } else if(energy >= currentChar->skill1Cost) {
+            printf("[Q:%s ★就绪] ", currentChar->skill1Name.c_str());
+        } else {
+            printf("[Q:%s 能量不足] ", currentChar->skill1Name.c_str());
+        }
+        
+        // 技能2状态
+        if(skill2Cooldown > 0) {
+            printf("[E:%s CD:%.1fs]\n", currentChar->skill2Name.c_str(), skill2Cooldown/10.0);
+        } else if(energy >= currentChar->skill2Cost) {
+            printf("[E:%s ★就绪]\n", currentChar->skill2Name.c_str());
+        } else {
+            printf("[E:%s 能量不足]\n", currentChar->skill2Name.c_str());
+        }
+        
+        printf(" 武器栏: ");
+        
+        // 主武器
+        if(currentWeapon == 0) printf("►►");
+        printf("[F1:主武器 %d/30] ", primaryAmmo);
+        
+        // 副武器
+        if(currentWeapon == 1) printf("►►");
+        printf("[F2:副武器 %d/15] ", secondaryAmmo);
+        
+        // 刀
+        if(currentWeapon == 2) printf("►►");
+        printf("[F3:近战刀 ∞]\n");
+        
+        // 换弹提示
+        if(reloadTimer > 0) {
+            printf(" 正在换弹... %.1fs\n", reloadTimer/10.0);
+        }
+        
+        printf("========================================\n");
+        printf("方向键:转向 | 鼠标:射击 | R:换弹\n");
     }
 
     bool isObstacle(int x, int y) {
@@ -241,37 +300,89 @@ public:
     }
     
     void update() {
+        // 冷却计时递减
+        if(skill1Cooldown > 0) skill1Cooldown--;
+        if(skill2Cooldown > 0) skill2Cooldown--;
+        if(reloadTimer > 0) reloadTimer--;
+        
         if (_kbhit()) {
             int k = _getch();
+            
+            // 处理方向键和F键（224是扩展键前缀）
+            if (k == 224 || k == 0) {
+                k = _getch();
+                if (k == 72) playerDir = 0;      // 上箭头
+                else if (k == 77) playerDir = 1;  // 右箭头
+                else if (k == 80) playerDir = 2;  // 下箭头
+                else if (k == 75) playerDir = 3;  // 左箭头
+                // F键武器切换
+                else if(k == 59) currentWeapon = 0; // F1 主武器
+                else if(k == 60) currentWeapon = 1; // F2 副武器
+                else if(k == 61) currentWeapon = 2; // F3 刀
+                return;
+            }
+            
+            // R键换弹
+            if((k == 'r' || k == 'R') && reloadTimer == 0) {
+                if(currentWeapon == 0 && primaryAmmo < 30) {
+                    reloadTimer = 20; // 2秒换弹
+                    primaryAmmo = 30;
+                } else if(currentWeapon == 1 && secondaryAmmo < 15) {
+                    reloadTimer = 15; // 1.5秒换弹
+                    secondaryAmmo = 15;
+                }
+                return;
+            }
+            
             int newX = p.x, newY = p.y;
             
+            // WASD移动
             if (k == 'w' || k == 'W') newY--;
             if (k == 's' || k == 'S') newY++;
             if (k == 'a' || k == 'A') newX--;
             if (k == 'd' || k == 'D') newX++;
             
-            // 射击
-            if (k == ' ') {
-                // 银翼：多重射击
-                if(selectedChar == 13) {
-                    for(int i=0; i<5; i++) {
-                        if(!bullets[i].live) {
-                            bullets[i] = {p.x + (i-2), p.y - 1, true, 0};
-                            break;
+            // 空格键射击（按玩家朝向）
+            if (k == ' ' && reloadTimer == 0) {
+                // 根据当前武器判断是否能射击
+                bool canShoot = false;
+                int weaponDamage = 10;
+                
+                if(currentWeapon == 0 && primaryAmmo > 0) { // 主武器
+                    primaryAmmo--;
+                    canShoot = true;
+                    weaponDamage = 10;
+                } else if(currentWeapon == 1 && secondaryAmmo > 0) { // 副武器
+                    secondaryAmmo--;
+                    canShoot = true;
+                    weaponDamage = 15; // 副武器伤害更高
+                } else if(currentWeapon == 2) { // 刀（近战）
+                    canShoot = true;
+                    weaponDamage = 50; // 近战伤害很高但射程短
+                }
+                
+                if(canShoot) {
+                    // 银翼：多重射击（仅主武器）
+                    if(selectedChar == 13 && currentWeapon == 0) {
+                        for(int i=0; i<5; i++) {
+                            if(!bullets[i].live) {
+                                bullets[i] = {p.x + bulletDirX[playerDir], p.y + bulletDirY[playerDir], true, playerDir};
+                                break;
+                            }
                         }
+                    } else if (!bullet.live || berserkTimer > 0) {
+                        bullet = {p.x + bulletDirX[playerDir], p.y + bulletDirY[playerDir], true, playerDir};
                     }
-                } else if (!bullet.live || berserkTimer > 0) {
-                    bullet = {p.x, p.y - 1, true, 0};
                 }
             }
             
             // Q 键技能1
-            if ((k == 'q' || k == 'Q') && energy >= currentChar->skill1Cost && stealthTimer <= 0) {
+            if ((k == 'q' || k == 'Q') && energy >= currentChar->skill1Cost && stealthTimer <= 0 && skill1Cooldown <= 0) {
                 activateSkill1();
             }
             
             // E 键技能2
-            if ((k == 'e' || k == 'E') && energy >= currentChar->skill2Cost && berserkTimer <= 0) {
+            if ((k == 'e' || k == 'E') && energy >= currentChar->skill2Cost && berserkTimer <= 0 && skill2Cooldown <= 0) {
                 activateSkill2();
             }
 
@@ -300,8 +411,11 @@ public:
         }
 
         if (bullet.live) {
-            bullet.y--;
-            if (bullet.y <= 0 || isObstacle(bullet.x, bullet.y)) bullet.live = false;
+            // 根据子弹方向移动
+            bullet.x += bulletDirX[bullet.hp];
+            bullet.y += bulletDirY[bullet.hp];
+            if (bullet.x <= 0 || bullet.x >= M_SIZE-1 || bullet.y <= 0 || bullet.y >= M_SIZE-1 || isObstacle(bullet.x, bullet.y)) 
+                bullet.live = false;
             checkBulletHit(bullet);
         }
         
@@ -309,8 +423,9 @@ public:
         if(selectedChar == 13) {
             for(int i=0; i<5; i++) {
                 if(bullets[i].live) {
-                    bullets[i].y--;
-                    if (bullets[i].y <= 0 || isObstacle(bullets[i].x, bullets[i].y)) 
+                    bullets[i].x += bulletDirX[bullets[i].hp];
+                    bullets[i].y += bulletDirY[bullets[i].hp];
+                    if (bullets[i].x <= 0 || bullets[i].x >= M_SIZE-1 || bullets[i].y <= 0 || bullets[i].y >= M_SIZE-1 || isObstacle(bullets[i].x, bullets[i].y)) 
                         bullets[i].live = false;
                     checkBulletHit(bullets[i]);
                 }
@@ -381,6 +496,16 @@ public:
                 }
             }
         }
+        
+        // 检查玩家是否在撤离点
+        if (p.x == extractionPoint.x && p.y == extractionPoint.y) {
+            extractionTimer++;
+            if (extractionTimer >= 33) { // 5秒 * 6.67帧/秒 ≈ 33帧
+                missionComplete = true;
+            }
+        } else {
+            extractionTimer = 0;
+        }
     }
     
     void checkBulletHit(Unit& b) {
@@ -391,10 +516,6 @@ public:
                     poisonTimer[i] = 30;
                 }
                 enemies[i].live = b.live = false;
-                score += 100;
-                ofstream f("save.txt");
-                f << p.hp << " " << score;
-                f.close();
                 break;
             }
         }
@@ -403,6 +524,7 @@ public:
     void activateSkill1() {
         energy -= currentChar->skill1Cost;
         stealthTimer = 40;
+        skill1Cooldown = 80; // 8秒冷却
         
         // 特殊效果
         if(selectedChar == 3) { // 蜂医：治疗
@@ -417,6 +539,7 @@ public:
     void activateSkill2() {
         energy -= currentChar->skill2Cost;
         berserkTimer = 30;
+        skill2Cooldown = 100; // 10秒冷却
         
         // 特殊效果  
         if(selectedChar == 8) { // 深蓝：护盾
@@ -429,19 +552,141 @@ public:
         }
     }
 
+    void playIntroAnimation() {
+        system("cls");
+        
+        // 第一阶段：直升机从远处飞来
+        for(int frame = 0; frame < 15; frame++) {
+            system("cls");
+            printf("\n\n\n\n");
+            
+            // 计算直升机位置
+            int heliPos = frame * 3;
+            
+            // 打印侧面视角直升机
+            for(int i = 0; i < heliPos; i++) printf(" ");
+            printf("      __//__\n");
+            for(int i = 0; i < heliPos; i++) printf(" ");
+            printf("  ___=========___\n");
+            for(int i = 0; i < heliPos; i++) printf(" ");
+            printf(" |  [  VH-1  ]  |>>\n");
+            for(int i = 0; i < heliPos; i++) printf(" ");
+            printf(" |______________|__\n");
+            for(int i = 0; i < heliPos; i++) printf(" ");
+            printf("   o          o\n");
+            
+            printf("\n\n\n");
+            printf("    >> 直升机接近投放点... <<\n");
+            Sleep(80);
+        }
+        
+        // 第二阶段：悬停准备投放
+        for(int i = 0; i < 3; i++) {
+            system("cls");
+            printf("\n\n\n\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("      __//__\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("  ___=========___\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf(" |  [  VH-1  ]  |>>\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf(" |_____[|||]____|__\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("   o          o\n");
+            printf("\n\n\n");
+            printf("    >> 抵达投放点，准备快速绳降... <<\n");
+            Sleep(500);
+        }
+        
+        // 第三阶段：玩家滑索降落
+        for(int drop = 0; drop < 12; drop++) {
+            system("cls");
+            printf("\n\n\n\n");
+            
+            // 直升机（侧面视角）
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("      __//__\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("  ___=========___\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf(" |  [  VH-1  ]  |>>\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf(" |_____[|||]____|__\n");
+            for(int j = 0; j < 30; j++) printf(" ");
+            printf("   o    |     o\n");
+            
+            // 绳索
+            for(int rope = 0; rope < drop; rope++) {
+                for(int j = 0; j < 38; j++) printf(" ");
+                printf("|\n");
+            }
+            
+            // 玩家角色
+            if(drop < 11) {
+                for(int j = 0; j < 37; j++) printf(" ");
+                printf("[%c]\n", currentChar->icon);
+                for(int j = 0; j < 37; j++) printf(" ");
+                printf("/|\\\n");
+                for(int j = 0; j < 37; j++) printf(" ");
+                printf("/ \\\n");
+            }
+            
+            printf("\n");
+            for(int ground = drop; ground < 11; ground++) printf("\n");
+            printf("    ========================================\n");
+            printf("            === 着陆区域 ===\n");
+            
+            if(drop < 11) {
+                printf("\n    >> %s 正在快速绳降... <<\n", currentChar->name.c_str());
+            } else {
+                printf("\n    >> 着陆成功！准备作战！<<\n");
+            }
+            
+            Sleep(150);
+        }
+        
+        Sleep(800);
+        
+        // 任务简报
+        system("cls");
+        printf("\n\n\n");
+        printf("    ==========================================\n");
+        printf("              任务简报\n");
+        printf("    ==========================================\n\n");
+        printf("    干员: %s\n", currentChar->name.c_str());
+        printf("    难度: %s\n", difficulty==0?"简单":difficulty==1?"普通":"困难");
+        printf("    目标: 消灭所有敌对目标\n");
+        printf("    武器: 已配备主副武器及近战刀具\n\n");
+        printf("    ==========================================\n");
+        printf("\n    按任意键开始任务...\n");
+        _getch();
+    }
+    
     void start() {
-        while (p.hp > 0 && score < E_COUNT * 100) {
+        playIntroAnimation();
+        
+        while (p.hp > 0 && !missionComplete) {
             draw();
             update();
             Sleep(150);
         }
         system("cls");
+        printf("\n\n");
         if (p.hp <= 0) {
-            printf("任务失败，存档清空\n");
-            ofstream f("save.txt");
-            f << 100 << " " << 0;
-            f.close();
-        } else printf("任务成功！\n");
+            printf("    ========================================\n");
+            printf("    ||      任务失败 - MISSION FAILED    ||\n");
+            printf("    ========================================\n");
+            printf("\n    干员阵亡，任务终止\n\n");
+        } else if (missionComplete) {
+            printf("    ========================================\n");
+            printf("    ||     撤离成功 - EXTRACTION COMPLETE ||\n");
+            printf("    ========================================\n");
+            printf("\n    干员: %s\n", currentChar->name.c_str());
+            printf("    存活生命值: %d\n", p.hp);
+            printf("    难度: %s\n\n", difficulty==0?"简单":difficulty==1?"普通":"困难");
+            printf("    任务完成！\n\n");
+        }
         _getch();
     }
 };
@@ -451,13 +696,13 @@ void showMainMenu() {
     printf("\n\n");
     printf("    ==========================================\n");
     printf("    ||                                      ||\n");
-    printf("    ||      特种兵作战 v2.0              ||\n");
-    printf("    ||      SPECIAL OPS MISSION           ||\n");
+    printf("    ||      DELTAFORCE v3.0               ||\n");
+    printf("    ||      三角洲特种部队                 ||\n");
     printf("    ||                                      ||\n");
     printf("    ==========================================\n\n");
     printf("    【主菜单】\n\n");
-    printf("    [1] 开始游戏\n");
-    printf("    [2] 游戏说明\n");
+    printf("    [1] 开始任务\n");
+    printf("    [2] 操作说明\n");
     printf("    [3] 退出游戏\n\n");
     printf("    请选择 (1-3): ");
 }
@@ -465,29 +710,138 @@ void showMainMenu() {
 void showInstructions() {
     system("cls");
     printf("\n\n");
-    printf("    ========== 游戏说明 ==========\n\n");
-    printf("    【游戏目标】\n");
-    printf("      消灭所有敌人并生存到最后！\n\n");
+    printf("    ========== 操作说明 ==========\n\n");
+    printf("    【任务目标】\n");
+    printf("      到达撤离点并生存！\n\n");
     printf("    【操作说明】\n");
-    printf("      WASD - 移动角色\n");
-    printf("      空格 - 射击\n");
-    printf("      Q键  - 技能1（消耗能量）\n");
-    printf("      E键  - 技能2（消耗能量）\n\n");
+    printf("      WASD键   - 移动角色\n");
+    printf("      方向键   - 转换朝向（上下左右）\n");
+    printf("      空格键   - 按朝向射击\n");
+    printf("      Q键      - 技能1（消耗能量）\n");
+    printf("      E键      - 技能2（消耗能量）\n\n");
     printf("    【地图元素】\n");
     printf("      =   - 边界墙壁\n");
     printf("      #   - 障碍物（可阻挡）\n");
+    printf("      ◎  - 撤离点（停留5秒撤离）\n");
     printf("      o   - 普通敌人（平静）\n");
     printf("      !   - 普通敌人（警觉）\n");
     printf("      e/E - 精英敌人（平静/警觉）\n");
     printf("      X/M - BOSS（平静/警觉）\n");
     printf("      ~   - 中毒敌人\n\n");
-    printf("    【战斗技巧】\n");
+    printf("    【战术提示】\n");
     printf("      - 靠近敌人九宫格才会惊动AI\n");
-    printf("      - 利用隐身技能潜行穿越\n");
-    printf("      - 不同角色有独特技能\n");
+    printf("      - 利用方向键切换朝向精准射击\n");
+    printf("      - 不同干员有独特技能\n");
     printf("      - 能量会自动恢复\n\n");
     printf("    按任意键返回主菜单...");
     _getch();
+}
+
+void showCharacterDetail(int index) {
+    system("cls");
+    Character& c = characters[index];
+    printf("\n");
+    printf("    ╔════════════════════════════════════════════╗\n");
+    printf("    ║          干员详细资料 [%c]               ║\n", c.icon);
+    printf("    ╚════════════════════════════════════════════╝\n\n");
+    printf("    【代号】 %s\n\n", c.name.c_str());
+    printf("    【基础属性】\n");
+    printf("      ♥ 生命值: %d\n", c.maxHp);
+    printf("      ⚡ 能量值: %d\n", c.baseEnergy);
+    printf("      ✦ 外观标识: %c\n\n", c.icon);
+    printf("    【技能配置】\n");
+    printf("      [Q] %s (消耗: %d 能量)\n", c.skill1Name.c_str(), c.skill1Cost);
+    printf("      [E] %s (消耗: %d 能量)\n\n", c.skill2Name.c_str(), c.skill2Cost);
+    printf("    【干员特性】\n");
+    printf("      %s\n\n", c.description.c_str());
+    printf("    ════════════════════════════════════════════\n");
+    printf("    按 [Space] 选择此干员 | 按其他键返回列表\n");
+}
+
+int showCharacterSelection() {
+    int currentPage = 0;
+    int charsPerPage = 7;
+    int totalPages = (14 + charsPerPage - 1) / charsPerPage;
+    
+    while(true) {
+        system("cls");
+        printf("\n");
+        printf("    ╔════════════════════════════════════════════╗\n");
+        printf("    ║            干员选择中心                  ║\n");
+        printf("    ╚════════════════════════════════════════════╝\n\n");
+        printf("    第 %d/%d 页 | 方向键翻页 | 数字键查看详情\n\n", currentPage + 1, totalPages);
+        
+        int start = currentPage * charsPerPage;
+        int end = min(start + charsPerPage, 14);
+        
+        for(int i = start; i < end; i++) {
+            char key;
+            if(i < 9) key = '1' + i;
+            else if(i == 9) key = '0';
+            else if(i == 10) key = 'A';
+            else if(i == 11) key = 'B';
+            else if(i == 12) key = 'C';
+            else key = 'D';
+            
+            printf("    [%c] %-10s | HP:%-3d EN:%-3d | %c\n", 
+                   key, characters[i].name.c_str(), 
+                   characters[i].maxHp, characters[i].baseEnergy,
+                   characters[i].icon);
+        }
+        
+        printf("\n    ════════════════════════════════════════════\n");
+        printf("    操作提示:\n");
+        printf("      按数字/字母键 - 查看干员详细资料\n");
+        printf("      < > - 翻页    ESC - 返回上一级\n");
+        printf("\n    请选择: ");
+        
+        char choice = _getch();
+        
+        // ESC返回
+        if(choice == 27) {
+            return -1;
+        }
+        
+        // 处理方向键 (Windows下方向键是两个字符)
+        if(choice == 0 || choice == -32) {
+            choice = _getch();
+            if(choice == 75) { // 左箭头
+                if(currentPage > 0) currentPage--;
+                continue;
+            }
+            if(choice == 77) { // 右箭头
+                if(currentPage < totalPages - 1) currentPage++;
+                continue;
+            }
+        }
+        
+        // 用字母代替方向键
+        if(choice == '<' || choice == ',') { // < 或 ,
+            if(currentPage > 0) currentPage--;
+            continue;
+        }
+        if(choice == '>' || choice == '.') { // > 或 .
+            if(currentPage < totalPages - 1) currentPage++;
+            continue;
+        }
+        
+        // 查看详情
+        int charIndex = -1;
+        if(choice >= '1' && choice <= '9') charIndex = choice - '1';
+        else if(choice == '0') charIndex = 9;
+        else if(choice == 'a' || choice == 'A') charIndex = 10;
+        else if(choice == 'b' || choice == 'B') charIndex = 11;
+        else if(choice == 'c' || choice == 'C') charIndex = 12;
+        else if(choice == 'd' || choice == 'D') charIndex = 13;
+        
+        if(charIndex >= 0 && charIndex < 14) {
+            showCharacterDetail(charIndex);
+            char confirm = _getch();
+            if(confirm == ' ' || confirm == 13) { // 空格或回车确认
+                return charIndex;
+            }
+        }
+    }
 }
 
 int main() {
@@ -512,56 +866,48 @@ int main() {
             continue;
         }
         else if(choice == '1') {
-            // 开始游戏
-            break;
+            // 开始游戏流程
+            bool gameStarted = false;
+            
+            while(!gameStarted) {
+                // 难度选择
+                system("cls");
+                printf("\n");
+                printf("    =======  特种兵作战  =======\n");
+                printf("    ===========================\n\n");
+                printf("    选择难度:\n\n");
+                printf("    [1] 简单 - 练习模式\n");
+                printf("    [2] 普通 - 正常任务\n");
+                printf("    [3] 困难 - 生死考验\n\n");
+                printf("    请选择 (1-3): ");
+                
+                int diff = 1;
+                choice = _getch();
+                if(choice == '1') diff = 0;
+                else if(choice == '3') diff = 2;
+                else diff = 1;
+                
+                // 角色选择 - 使用新的详细界面
+                int charIndex = showCharacterSelection();
+                
+                // 如果用户按ESC返回，重新选择难度
+                if(charIndex == -1) {
+                    continue;
+                }
+                
+                system("cls");
+                printf("\n    开始任务...\n    角色: %s\n    难度: %s\n\n    按任意键继续...", 
+                       characters[charIndex].name.c_str(),
+                       diff==0?"简单":diff==1?"普通":"困难");
+                _getch();
+                system("cls");
+                
+                GameEngine g(charIndex, diff);
+                g.start();
+                gameStarted = true;
+            }
         }
     }
     
-    // 难度选择
-    system("cls");
-    printf("\n");
-    printf("    =======  特种兵作战  =======\n");
-    printf("    ===========================\n\n");
-    printf("    选择难度:\n\n");
-    printf("    [1] 简单 - p\n");
-    printf("    [2] 普通 - 正常任务\n");
-    printf("    [3] 困难 - 生死考验\n\n");
-    printf("    请选择 (1-3): ");
-    
-    int diff = 1;
-    choice = _getch();
-    if(choice == '1') diff = 0;
-    else if(choice == '3') diff = 2;
-    else diff = 1;
-    
-    // 角色选择
-    system("cls");
-    printf("\n    选择你的特种兵:\n\n");
-    for(int i=0; i<14; i++) {
-        printf("    [%c] %s - %s\n", 
-               i<9?('1'+i):(i==9?'0':(i==10?'A':(i==11?'B':(i==12?'C':'D')))),
-               characters[i].name.c_str(),
-               characters[i].description.c_str());
-    }
-    printf("\n    请选择: ");
-    
-    int charIndex = 11; // 默认无名
-    choice = _getch();
-    if(choice >= '1' && choice <= '9') charIndex = choice - '1';
-    else if(choice == '0') charIndex = 9;
-    else if(choice == 'a' || choice == 'A') charIndex = 10;
-    else if(choice == 'b' || choice == 'B') charIndex = 11;
-    else if(choice == 'c' || choice == 'C') charIndex = 12;
-    else if(choice == 'd' || choice == 'D') charIndex = 13;
-    
-    system("cls");
-    printf("\n    开始任务...\n    角色: %s\n    难度: %s\n\n    按任意键继续...", 
-           characters[charIndex].name.c_str(),
-           diff==0?"简单":diff==1?"普通":"困难");
-    _getch();
-    system("cls");
-    
-    GameEngine g(charIndex, diff);
-    g.start();
     return 0;
 }
