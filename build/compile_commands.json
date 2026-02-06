@@ -1,0 +1,8 @@
+[
+{
+  "directory": "C:/Users/baiming/CLionProjects/untitled/build",
+  "command": "C:\\PROGRA~1\\MIB055~1\\18\\COMMUN~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx86\\x86\\cl.exe  /nologo /TP /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /FoCMakeFiles\\untitled.dir\\游戏.cpp.obj /FdCMakeFiles\\untitled.dir\\ /FS -c C:\\Users\\baiming\\CLionProjects\\untitled\\游戏.cpp",
+  "file": "C:/Users/baiming/CLionProjects/untitled/游戏.cpp",
+  "output": "C:/Users/baiming/CLionProjects/untitled/build/CMakeFiles/untitled.dir/游戏.cpp.obj"
+}
+]
