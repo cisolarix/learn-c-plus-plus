@@ -1,0 +1,32 @@
+// #include <bits/stdc++.h>
+
+// using namespace std;
+
+// map<string,set<int>> mp;
+// set<int>::iterator it;
+// int n,m;
+// string s;
+
+// int main()
+// {
+// 	cin>>n;
+// 	for(int i=1;i<=n;++i)
+// 	{
+// 	    int l;
+// 	    cin>>l;
+// 	    for(int j=0;j<l;++j){
+// 	        cin>>s;
+// 	        mp[s].insert(i);
+// 	    }
+// 	}
+// 	cin>>m;
+// 	while(m--)
+// 	{
+// 	    cin>>s;
+// 	    if(mp.count(s))
+// 	        for(it=mp[s].begin();it!=mp[s].end();++it)
+// 	            cout<<*it<<" ";
+// 	    cout<<endl;
+// 	}
+// 	return 0;
+// }

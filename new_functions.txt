@@ -1,0 +1,486 @@
+// ==================== 装备界面系统 ====================
+void showEquipment() {
+    while (true) {
+        system("cls");
+        showDeltaForceTitle();
+        printf("    %s═══════════════════════ 装备界面 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+        
+        Character& ch = characters[g_selectedCharacter];
+        printf("    %s当前干员: %s%s%s | %sHP:%d EN:%d%s\n\n", 
+               COLOR_WHITE, COLOR_CYAN, ch.name.c_str(), COLOR_RESET,
+               COLOR_RED, ch.maxHp, ch.baseEnergy, COLOR_RESET);
+        
+        printf("    %s【已装备】%s\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s武器槽: %s%s%s\n", COLOR_WHITE, COLOR_YELLOW, 
+               playerData.equippedWeapon.name.empty() ? "无" : playerData.equippedWeapon.name.c_str(), 
+               COLOR_RESET);
+        printf("    %s护甲槽: %s%s%s\n\n", COLOR_WHITE, COLOR_YELLOW, 
+               playerData.equippedArmor.name.empty() ? "无" : playerData.equippedArmor.name.c_str(), 
+               COLOR_RESET);
+        
+        printf("    %s背包容量: %s%d%s (基础10", COLOR_WHITE, COLOR_GREEN, playerData.backpackSize, COLOR_RESET);
+        if (playerData.hasBackpack) printf(" + 背包配件");
+        printf(")\n\n");
+        
+        printf("    %s──────────────────────────────────────%s\n", COLOR_SILVER, COLOR_RESET);
+        printf("    %s[1]%s 装备武器（从仓库）\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[2]%s 装备护甲（从仓库）\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[3]%s 卸下武器（放回仓库）\n", COLOR_YELLOW, COLOR_RESET);
+        printf("    %s[4]%s 卸下护甲（放回仓库）\n", COLOR_YELLOW, COLOR_RESET);
+        printf("    %s[5]%s 查看仓库装备\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[0]%s 返回\n", COLOR_RED, COLOR_RESET);
+        printf("    %s══════════════════════════════════════%s\n", COLOR_SILVER, COLOR_RESET);
+        printf("    请选择: ");
+        
+        int choice = _getch() - '0';
+        
+        if (choice == 0) return;
+        else if (choice == 1) {
+            // 装备武器
+            system("cls");
+            showDeltaForceTitle();
+            printf("    %s═══════════════════════ 装备武器 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+            
+            bool hasWeapon = false;
+            for (int i = 0; i < playerData.warehouseCount; i++) {
+                if (playerData.warehouse[i].type == "weapon") {
+                    hasWeapon = true;
+                    printf("    %s[%d]%s %s - %s$%d%s\n", COLOR_YELLOW, i + 1, COLOR_RESET,
+                           playerData.warehouse[i].name.c_str(), COLOR_GREEN, playerData.warehouse[i].price, COLOR_RESET);
+                }
+            }
+            
+            if (!hasWeapon) {
+                printf("    %s仓库中没有武器！%s\n", COLOR_RED, COLOR_RESET);
+                printf("\n    按任意键返回...");
+                _getch();
+                continue;
+            }
+            
+            printf("\n    输入序号装备（0返回）: ");
+            int idx;
+            scanf("%d", &idx);
+            getchar();
+            
+            if (idx == 0) continue;
+            if (idx < 1 || idx > playerData.warehouseCount) {
+                printf("    %s无效选择！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            Item& selectedItem = playerData.warehouse[idx - 1];
+            if (selectedItem.type != "weapon") {
+                printf("    %s这不是武器！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            // 卸下当前武器
+            if (!playerData.equippedWeapon.name.empty()) {
+                if (playerData.warehouseCount < MAX_WAREHOUSE) {
+                    playerData.warehouse[playerData.warehouseCount++] = playerData.equippedWeapon;
+                }
+            }
+            
+            // 装备新武器
+            playerData.equippedWeapon = selectedItem;
+            
+            // 从仓库移除
+            for (int i = idx - 1; i < playerData.warehouseCount - 1; i++) {
+                playerData.warehouse[i] = playerData.warehouse[i + 1];
+            }
+            playerData.warehouseCount--;
+            
+            printf("    %s✓ 已装备: %s%s\n", COLOR_GREEN, playerData.equippedWeapon.name.c_str(), COLOR_RESET);
+            Sleep(1500);
+        }
+        else if (choice == 2) {
+            // 装备护甲
+            system("cls");
+            showDeltaForceTitle();
+            printf("    %s═══════════════════════ 装备护甲 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+            
+            bool hasArmor = false;
+            for (int i = 0; i < playerData.warehouseCount; i++) {
+                if (playerData.warehouse[i].type == "armor") {
+                    hasArmor = true;
+                    printf("    %s[%d]%s %s - %s$%d%s\n", COLOR_YELLOW, i + 1, COLOR_RESET,
+                           playerData.warehouse[i].name.c_str(), COLOR_GREEN, playerData.warehouse[i].price, COLOR_RESET);
+                }
+            }
+            
+            if (!hasArmor) {
+                printf("    %s仓库中没有护甲！%s\n", COLOR_RED, COLOR_RESET);
+                printf("\n    按任意键返回...");
+                _getch();
+                continue;
+            }
+            
+            printf("\n    输入序号装备（0返回）: ");
+            int idx;
+            scanf("%d", &idx);
+            getchar();
+            
+            if (idx == 0) continue;
+            if (idx < 1 || idx > playerData.warehouseCount) {
+                printf("    %s无效选择！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            Item& selectedItem = playerData.warehouse[idx - 1];
+            if (selectedItem.type != "armor") {
+                printf("    %s这不是护甲！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            // 卸下当前护甲
+            if (!playerData.equippedArmor.name.empty()) {
+                if (playerData.warehouseCount < MAX_WAREHOUSE) {
+                    playerData.warehouse[playerData.warehouseCount++] = playerData.equippedArmor;
+                }
+            }
+            
+            // 装备新护甲
+            playerData.equippedArmor = selectedItem;
+            
+            // 从仓库移除
+            for (int i = idx - 1; i < playerData.warehouseCount - 1; i++) {
+                playerData.warehouse[i] = playerData.warehouse[i + 1];
+            }
+            playerData.warehouseCount--;
+            
+            printf("    %s✓ 已装备: %s%s\n", COLOR_GREEN, playerData.equippedArmor.name.c_str(), COLOR_RESET);
+            Sleep(1500);
+        }
+        else if (choice == 3) {
+            // 卸下武器
+            if (playerData.equippedWeapon.name.empty()) {
+                printf("\n\n    %s没有装备武器！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            if (playerData.warehouseCount >= MAX_WAREHOUSE) {
+                printf("\n\n    %s仓库已满！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            playerData.warehouse[playerData.warehouseCount++] = playerData.equippedWeapon;
+            printf("\n\n    %s✓ 已卸下: %s%s\n", COLOR_GREEN, playerData.equippedWeapon.name.c_str(), COLOR_RESET);
+            playerData.equippedWeapon = {"", 0, 0, "", ""};
+            Sleep(1500);
+        }
+        else if (choice == 4) {
+            // 卸下护甲
+            if (playerData.equippedArmor.name.empty()) {
+                printf("\n\n    %s没有装备护甲！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            if (playerData.warehouseCount >= MAX_WAREHOUSE) {
+                printf("\n\n    %s仓库已满！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            playerData.warehouse[playerData.warehouseCount++] = playerData.equippedArmor;
+            printf("\n\n    %s✓ 已卸下: %s%s\n", COLOR_GREEN, playerData.equippedArmor.name.c_str(), COLOR_RESET);
+            playerData.equippedArmor = {"", 0, 0, "", ""};
+            Sleep(1500);
+        }
+        else if (choice == 5) {
+            // 查看仓库装备
+            system("cls");
+            showDeltaForceTitle();
+            printf("    %s═══════════════════════ 仓库装备 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+            
+            if (playerData.warehouseCount == 0) {
+                printf("    %s仓库是空的...%s\n", COLOR_YELLOW, COLOR_RESET);
+            } else {
+                for (int i = 0; i < playerData.warehouseCount; i++) {
+                    Item& item = playerData.warehouse[i];
+                    if (item.type == "weapon" || item.type == "armor") {
+                        printf("    %s[%d]%s %s - %s%s%s - %s$%d%s\n", 
+                               COLOR_YELLOW, i + 1, COLOR_RESET,
+                               item.name.c_str(),
+                               COLOR_PURPLE, item.type.c_str(), COLOR_RESET,
+                               COLOR_GREEN, item.price, COLOR_RESET);
+                    }
+                }
+            }
+            
+            printf("\n    按任意键返回...");
+            _getch();
+        }
+    }
+}
+
+// ==================== 仓库管理系统 ====================
+void showWarehouse() {
+    while (true) {
+        system("cls");
+        showDeltaForceTitle();
+        printf("    %s═══════════════════════ 仓库管理 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+        printf("    %s资金: %s$%d%s\n", COLOR_WHITE, COLOR_YELLOW, playerData.money, COLOR_RESET);
+        printf("    %s仓库容量: %s%d/%d%s\n", COLOR_WHITE, COLOR_GREEN, playerData.warehouseCount, MAX_WAREHOUSE, COLOR_RESET);
+        printf("    %s背包容量: %s%d%s (基础10", COLOR_WHITE, COLOR_GREEN, playerData.backpackSize, COLOR_RESET);
+        if (playerData.hasBackpack) printf(" + 背包配件");
+        printf(")\n\n");
+        
+        printf("    %s──────────────────────────────────────%s\n", COLOR_SILVER, COLOR_RESET);
+        printf("    %s[1]%s 购买背包配件 ($500) - 增加背包容量\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[2]%s 查看仓库物品\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[3]%s 整理仓库（回收物品）\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[4]%s 安全箱管理\n", COLOR_GREEN, COLOR_RESET);
+        printf("    %s[0]%s 返回主菜单\n", COLOR_RED, COLOR_RESET);
+        printf("    %s══════════════════════════════════════%s\n", COLOR_SILVER, COLOR_RESET);
+        printf("    请选择: ");
+        
+        int choice = _getch() - '0';
+        
+        if (choice == 0) return;
+        else if (choice == 1) {
+            if (playerData.hasBackpack) {
+                printf("\n\n    %s你已经拥有背包配件了！%s\n", COLOR_YELLOW, COLOR_RESET);
+                Sleep(1500);
+            } else if (playerData.money >= 500) {
+                playerData.money -= 500;
+                playerData.hasBackpack = true;
+                playerData.backpackSize += 20; // 增加20容量
+                printf("\n\n    %s✓ 购买成功！背包容量增加到 %d%s\n", COLOR_GREEN, playerData.backpackSize, COLOR_RESET);
+                Sleep(2000);
+            } else {
+                printf("\n\n    %s✗ 资金不足！需要 $500%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1500);
+            }
+        }
+        else if (choice == 2) {
+            while (true) {
+                system("cls");
+                showDeltaForceTitle();
+                printf("    %s═══════════════════════ 仓库物品 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+                printf("    %s容量: %s%d/%d%s\n\n", COLOR_WHITE, COLOR_GREEN, playerData.warehouseCount, MAX_WAREHOUSE, COLOR_RESET);
+                
+                if (playerData.warehouseCount == 0) {
+                    printf("    %s仓库是空的...%s\n", COLOR_YELLOW, COLOR_RESET);
+                    printf("\n    按任意键返回...");
+                    _getch();
+                    break;
+                } else {
+                    printf("    %s【仓库列表】%s\n", COLOR_CYAN, COLOR_RESET);
+                    for (int i = 0; i < playerData.warehouseCount; i++) {
+                        Item& item = playerData.warehouse[i];
+                        printf("    %s[%d]%s %s - %s%s%s - %s$%d%s\n", 
+                               COLOR_YELLOW, i + 1, COLOR_RESET, 
+                               item.name.c_str(),
+                               COLOR_PURPLE, item.type.c_str(), COLOR_RESET,
+                               COLOR_GREEN, item.price, COLOR_RESET);
+                    }
+                    
+                    printf("\n    按任意键返回...");
+                    _getch();
+                    break;
+                }
+            }
+        }
+        else if (choice == 3) {
+            // 回收物品
+            if (playerData.warehouseCount == 0) {
+                printf("\n\n    %s仓库是空的！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            system("cls");
+            showDeltaForceTitle();
+            printf("    %s═══════════════════════ 回收物品 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+            
+            for (int i = 0; i < playerData.warehouseCount; i++) {
+                Item& item = playerData.warehouse[i];
+                int recyclePrice = (int)(item.price * 0.7);
+                printf("    %s[%d]%s %s - 回收价:%s$%d%s\n", 
+                       COLOR_YELLOW, i + 1, COLOR_RESET,
+                       item.name.c_str(),
+                       COLOR_ORANGE, recyclePrice, COLOR_RESET);
+            }
+            
+            printf("\n    输入序号回收（0返回）: ");
+            int idx;
+            scanf("%d", &idx);
+            getchar();
+            
+            if (idx == 0) continue;
+            if (idx < 1 || idx > playerData.warehouseCount) {
+                printf("    %s无效选择！%s\n", COLOR_RED, COLOR_RESET);
+                Sleep(1000);
+                continue;
+            }
+            
+            Item& recycleItem = playerData.warehouse[idx - 1];
+            int recyclePrice = (int)(recycleItem.price * 0.7);
+            playerData.money += recyclePrice;
+            
+            printf("    %s✓ 回收 %s，获得 $%d%s\n", COLOR_GREEN, recycleItem.name.c_str(), recyclePrice, COLOR_RESET);
+            
+            // 从仓库移除
+            for (int i = idx - 1; i < playerData.warehouseCount - 1; i++) {
+                playerData.warehouse[i] = playerData.warehouse[i + 1];
+            }
+            playerData.warehouseCount--;
+            
+            Sleep(1500);
+        }
+        else if (choice == 4) {
+            // 安全箱管理
+            system("cls");
+            showDeltaForceTitle();
+            printf("    %s═══════════════════════ 安全箱管理 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+            printf("    %s安全箱状态: %s%s%s\n\n", COLOR_WHITE,
+                   playerData.hasSafeBoxItem ? COLOR_GREEN : COLOR_YELLOW,
+                   playerData.hasSafeBoxItem ? 
+                   (playerData.safeBox.name + " ($" + to_string(playerData.safeBox.price) + ")").c_str() : "空",
+                   COLOR_RESET);
+            
+            if (playerData.hasSafeBoxItem) {
+                printf("    %s[1]%s 取出物品\n", COLOR_GREEN, COLOR_RESET);
+                printf("    %s[2]%s 出售物品 ($%d)\n", COLOR_YELLOW, COLOR_RESET, playerData.safeBox.price);
+                printf("    %s[0]%s 返回\n", COLOR_RED, COLOR_RESET);
+                printf("\n    请选择: ");
+                
+                int subchoice = _getch() - '0';
+                
+                if (subchoice == 1) {
+                    if (playerData.warehouseCount >= MAX_WAREHOUSE) {
+                        printf("\n\n    %s仓库已满！%s\n", COLOR_RED, COLOR_RESET);
+                        Sleep(1000);
+                    } else {
+                        playerData.warehouse[playerData.warehouseCount++] = playerData.safeBox;
+                        printf("\n\n    %s✓ 已取出: %s%s\n", COLOR_GREEN, playerData.safeBox.name.c_str(), COLOR_RESET);
+                        playerData.hasSafeBoxItem = false;
+                        playerData.safeBox = {"", 0, 0, "", ""};
+                        Sleep(1500);
+                    }
+                }
+                else if (subchoice == 2) {
+                    playerData.money += playerData.safeBox.price;
+                    printf("\n\n    %s✓ 出售成功！获得 $%d%s\n", COLOR_GREEN, playerData.safeBox.price, COLOR_RESET);
+                    playerData.hasSafeBoxItem = false;
+                    playerData.safeBox = {"", 0, 0, "", ""};
+                    Sleep(1500);
+                }
+            } else {
+                printf("    安全箱为空\n\n    按任意键返回...");
+                _getch();
+            }
+        }
+    }
+}
+
+// ==================== 局内背包查看 ====================
+void showInGameInventory() {
+    system("cls");
+    showDeltaForceTitle();
+    printf("    %s═══════════════════════ 局内背包 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+    printf("    %s容量: %s%d/%d%s\n\n", COLOR_WHITE, COLOR_GREEN, playerData.inventoryCount, playerData.backpackSize, COLOR_RESET);
+    
+    if (playerData.inventoryCount == 0) {
+        printf("    %s背包是空的...%s\n", COLOR_YELLOW, COLOR_RESET);
+    } else {
+        printf("    %s【携带物品】%s\n", COLOR_CYAN, COLOR_RESET);
+        for (int i = 0; i < playerData.inventoryCount; i++) {
+            Item& item = playerData.inventory[i];
+            printf("    %s[%d]%s %s - %s%s%s - %s$%d%s\n", 
+                   COLOR_YELLOW, i + 1, COLOR_RESET, 
+                   item.name.c_str(),
+                   COLOR_PURPLE, item.type.c_str(), COLOR_RESET,
+                   COLOR_GREEN, item.price, COLOR_RESET);
+        }
+    }
+    
+    printf("\n    按任意键返回...");
+    _getch();
+}
+
+// ==================== 局内存放到保险箱 ====================
+void storeItemInSafe() {
+    if (playerData.inventoryCount == 0) {
+        system("cls");
+        showDeltaForceTitle();
+        printf("    %s背包是空的！%s\n", COLOR_RED, COLOR_RESET);
+        Sleep(1000);
+        return;
+    }
+    
+    system("cls");
+    showDeltaForceTitle();
+    printf("    %s═══════════════════════ 存放到安全箱 ═══════════════════════%s\n\n", COLOR_CYAN, COLOR_RESET);
+    printf("    %s当前安全箱: %s%s%s\n\n", COLOR_WHITE,
+           playerData.hasSafeBoxItem ? COLOR_GREEN : COLOR_YELLOW,
+           playerData.hasSafeBoxItem ? playerData.safeBox.name.c_str() : "空",
+           COLOR_RESET);
+    
+    if (playerData.hasSafeBoxItem) {
+        printf("    %s安全箱已有物品！只能存放一件物品。%s\n", COLOR_RED, COLOR_RESET);
+        printf("\n    按任意键返回...");
+        _getch();
+        return;
+    }
+    
+    printf("    %s【可存放的变卖物】%s\n", COLOR_CYAN, COLOR_RESET);
+    bool hasMaterial = false;
+    for (int i = 0; i < playerData.inventoryCount; i++) {
+        Item& item = playerData.inventory[i];
+        if (item.type == "material") {
+            hasMaterial = true;
+            printf("    %s[%d]%s %s - %s$%d%s\n", 
+                   COLOR_YELLOW, i + 1, COLOR_RESET,
+                   item.name.c_str(),
+                   COLOR_GREEN, item.price, COLOR_RESET);
+        }
+    }
+    
+    if (!hasMaterial) {
+        printf("    %s没有可存放的变卖物！%s\n", COLOR_RED, COLOR_RESET);
+        printf("\n    按任意键返回...");
+        _getch();
+        return;
+    }
+    
+    printf("\n    输入序号存放（0返回）: ");
+    int idx;
+    scanf("%d", &idx);
+    getchar();
+    
+    if (idx == 0) return;
+    if (idx < 1 || idx > playerData.inventoryCount) {
+        printf("    %s无效选择！%s\n", COLOR_RED, COLOR_RESET);
+        Sleep(1000);
+        return;
+    }
+    
+    Item& selectedItem = playerData.inventory[idx - 1];
+    if (selectedItem.type != "material") {
+        printf("    %s只能存放变卖物！%s\n", COLOR_RED, COLOR_RESET);
+        Sleep(1000);
+        return;
+    }
+    
+    playerData.safeBox = selectedItem;
+    playerData.hasSafeBoxItem = true;
+    
+    printf("    %s✓ 已存入安全箱: %s%s\n", COLOR_GREEN, selectedItem.name.c_str(), COLOR_RESET);
+    printf("    %s（死亡也不会丢失）%s\n", COLOR_CYAN, COLOR_RESET);
+    
+    // 从背包移除
+    for (int i = idx - 1; i < playerData.inventoryCount - 1; i++) {
+        playerData.inventory[i] = playerData.inventory[i + 1];
+    }
+    playerData.inventoryCount--;
+    
+    Sleep(2000);
+}

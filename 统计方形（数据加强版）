@@ -1,0 +1,38 @@
+// #include <iostream>
+// // 引入标准输入输出流库
+
+// using namespace std;
+// // 使用标准命名空间
+
+// int main() {
+// // 主函数开始
+//     long long n, m;
+//     // 定义长整型变量 n 和 m，表示棋盘的行数和列数（使用 long long 防止大数据溢出）
+//     cin >> n >> m;
+//     // 读取棋盘的行数 n 和列数 m
+    
+//     long long total = n * (n + 1) / 2 * m * (m + 1) / 2;
+//     // 计算所有长方形（包括正方形）的总数
+//     // 公式：从 (n+1) 条横线中选 2 条 × 从 (m+1) 条竖线中选 2 条
+//     // C(n+1,2) × C(m+1,2) = n*(n+1)/2 × m*(m+1)/2
+    
+//     long long square = 0;
+//     // 定义变量 square，用于统计正方形的数量，初始化为 0
+//     long long minSize = (n < m ? n : m);
+//     // 找出 n 和 m 中的较小值，作为正方形边长的最大值（使用三元运算符）
+//     for (long long k = 1; k <= minSize; k++) {
+//     // 枚举正方形的边长 k，从 1 到 min(n, m)
+//         square += (n - k + 1) * (m - k + 1);
+//         // 累加边长为 k 的正方形数量
+//         // 边长为 k 的正方形：左上角可以放在 (n-k+1) × (m-k+1) 个位置
+//     }
+    
+//     long long rectangle = total - square;
+//     // 计算长方形（不包括正方形）的数量：总数减去正方形数
+    
+//     cout << square << " " << rectangle << endl;
+//     // 输出正方形数量和长方形数量，用空格分隔
+    
+//     return 0;
+//     // 程序正常结束
+// }
